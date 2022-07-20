@@ -5,6 +5,9 @@ with_wayland_weston_content_protection = (with_wayland_platform
     and with_wayland_weston_direct_display
     and get_option('wayland_weston_content_protection')
 )
+with_wayland_weston_foreign_surface = (with_wayland_platform
+    and get_option('wayland_weston_foreign_surface')
+)
 
 wayland_platform_dependencies = [
     cogcore_dep,
@@ -18,6 +21,7 @@ wayland_platform_c_args = [
     '-DG_LOG_DOMAIN="Cog-Wayland"',
     '-DCOG_ENABLE_WESTON_DIRECT_DISPLAY=@0@'.format(with_wayland_weston_direct_display.to_int()),
     '-DCOG_ENABLE_WESTON_CONTENT_PROTECTION=@0@'.format(with_wayland_weston_content_protection.to_int()),
+    '-DCOG_ENABLE_WESTON_FOREIGN_SURFACE=@0@'.format(with_wayland_weston_foreign_surface.to_int()),
 ]
 
 wayland_platform_weston_protocols = []
@@ -38,6 +42,7 @@ wayland_platform_protocols = {
         ['linux-dmabuf', 1],
         ['text-input', 1],
         ['text-input', 3],
+        ['fbx-foreign-surface', 1],
         ['idle-inhibit', 1],
     ],
     'weston': wayland_platform_weston_protocols,

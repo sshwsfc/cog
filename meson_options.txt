@@ -37,6 +37,12 @@ option(
     value: false,
     description: 'Build content-protection support in the Wayland platform plug-in'
 )
+option(
+    'wayland_weston_foreign_surface',
+    type: 'boolean',
+    value: false,
+    description: 'Build foreign-surface support in the Wayland platform plug-in'
+)
 
 # Additional cog/cogctl options
 option(

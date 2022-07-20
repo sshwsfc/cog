@@ -57,6 +57,11 @@
 #    include "weston-content-protection-client.h"
 #endif
 
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+#include "fbx-foreign-surface-unstable-v1-client.h"
+#include <wpe/extensions/video-foreign-surface.h>
+#endif
+
 #include "idle-inhibit-unstable-v1-client.h"
 
 #ifdef COG_USE_WAYLAND_CURSOR
@@ -121,6 +126,12 @@ struct video_surface {
 };
 #endif
 
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+struct video_foreign_surface {
+    struct wl_subsurface *wl_subsurface;
+};
+#endif
+
 #if HAVE_SHM_EXPORTED_BUFFER
 struct shm_buffer {
     struct wl_list link;
@@ -170,6 +181,10 @@ static struct {
 
 #if COG_ENABLE_WESTON_CONTENT_PROTECTION
     struct weston_content_protection *protection;
+#endif
+
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+    struct fbx_foreign_surface_manager *fsm;
 #endif
 
 #ifdef COG_USE_WAYLAND_CURSOR
@@ -839,6 +854,10 @@ registry_global (void               *data,
         wl_data.text_input_manager_v1 = wl_registry_bind(registry, name, &zwp_text_input_manager_v1_interface, 1);
     } else if (strcmp(interface, wp_presentation_interface.name) == 0) {
         wl_data.presentation = wl_registry_bind(registry, name, &wp_presentation_interface, 1);
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+    } else if (strcmp(interface, fbx_foreign_surface_manager_interface.name) == 0) {
+        wl_data.fsm = wl_registry_bind(registry, name, &fbx_foreign_surface_manager_interface, 1);
+#endif /* COG_ENABLE_WESTON_FOREIGN_SURFACE */
     } else if (strcmp(interface, zwp_idle_inhibit_manager_v1_interface.name) == 0) {
         wl_data.idle_inhibit_manager =
                 wl_registry_bind(registry, name,
@@ -1945,6 +1964,51 @@ static const struct wpe_video_plane_display_dmabuf_receiver video_plane_display_
 };
 #endif
 
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+static void
+destroy_video_foreign_surface(gpointer data)
+{
+    struct video_foreign_surface *surf = (struct video_foreign_surface *) data;
+
+    g_clear_pointer(&surf->wl_subsurface, wl_subsurface_destroy);
+    g_slice_free(struct video_foreign_surface, surf);
+}
+
+static void
+on_video_foreign_surface_receiver_handle_foreign_surface(
+    void *data, struct wpe_video_foreign_surface_export *foreign_surface_export, uint32_t id)
+{
+    struct video_foreign_surface *surf;
+    struct wl_surface *wl_surface;
+
+    surf = g_slice_new0(struct video_foreign_surface);
+
+    wl_surface = fbx_foreign_surface_manager_import_surface(wl_data.fsm, id);
+    surf->wl_subsurface = wl_subcompositor_get_subsurface(wl_data.subcompositor, wl_surface, win_data.wl_surface);
+    wl_surface_destroy(wl_surface);
+
+    wl_subsurface_set_desync(surf->wl_subsurface);
+    wl_subsurface_place_below(surf->wl_subsurface, win_data.wl_surface);
+
+    wpe_video_foreign_surface_export_set_data(foreign_surface_export, surf);
+}
+
+static void
+on_video_foreign_surface_receiver_set_position(
+    void *data, struct wpe_video_foreign_surface_export *foreign_surface_export, int32_t x, int32_t y)
+{
+    struct video_foreign_surface *surf;
+
+    surf = wpe_video_foreign_surface_export_get_data(foreign_surface_export);
+    wl_subsurface_set_position(surf->wl_subsurface, x, y);
+}
+
+static const struct wpe_video_foreign_surface_receiver video_foreign_surface_receiver = {
+    .handle_foreign_surface = on_video_foreign_surface_receiver_handle_foreign_surface,
+    .set_position = on_video_foreign_surface_receiver_set_position,
+};
+#endif
+
 static gboolean
 init_wayland (GError **error)
 {
@@ -2008,6 +2072,10 @@ clear_wayland (void)
 
 #if COG_ENABLE_WESTON_DIRECT_DISPLAY
     g_clear_pointer (&wl_data.direct_display, weston_direct_display_v1_destroy);
+#endif
+
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+    g_clear_pointer (&wl_data.fsm, fbx_foreign_surface_manager_destroy);
 #endif
 
 #ifdef COG_USE_WAYLAND_CURSOR
@@ -2482,6 +2550,10 @@ cog_wl_platform_setup(CogPlatform *platform, CogShell *shell G_GNUC_UNUSED, cons
 
 #if COG_ENABLE_WESTON_DIRECT_DISPLAY
     wpe_video_plane_display_dmabuf_register_receiver (&video_plane_display_dmabuf_receiver, NULL);
+#endif
+
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+    wpe_video_foreign_surface_register_receiver(&video_foreign_surface_receiver, NULL);
 #endif
 
     cog_gamepad_setup(gamepad_provider_get_view_backend_for_gamepad);
