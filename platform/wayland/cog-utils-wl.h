@@ -21,6 +21,10 @@
 
 #include "idle-inhibit-unstable-v1-client.h"
 
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+#    include "fbx-foreign-surface-unstable-v1-client.h"
+#endif
+
 #include <wayland-server.h>
 #include <wayland-util.h>
 #include <xkbcommon/xkbcommon.h>
@@ -257,6 +261,10 @@ struct _CogWlDisplay {
 
 #if COG_ENABLE_WESTON_CONTENT_PROTECTION
     struct weston_content_protection *protection;
+#endif
+
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+    struct fbx_foreign_surface_manager *fsm;
 #endif
 
 #ifdef COG_USE_WAYLAND_CURSOR

@@ -180,6 +180,10 @@ cog_wl_display_destroy(CogWlDisplay *display)
     g_clear_pointer(&display->direct_display, weston_direct_display_v1_destroy);
 #endif
 
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+    g_clear_pointer (&display->fsm, fbx_foreign_surface_manager_destroy);
+#endif
+
 #ifdef COG_USE_WAYLAND_CURSOR
     g_clear_pointer(&display->cursor_surface, wl_surface_destroy);
     g_clear_pointer(&display->cursor_theme, wl_cursor_theme_destroy);

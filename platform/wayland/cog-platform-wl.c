@@ -64,6 +64,11 @@
 #    include "weston-content-protection-client.h"
 #endif
 
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+#    include "fbx-foreign-surface-unstable-v1-client.h"
+#    include <wpe/extensions/video-foreign-surface.h>
+#endif
+
 #ifdef COG_USE_WAYLAND_CURSOR
 #    include <wayland-cursor.h>
 #endif
@@ -236,6 +241,10 @@ registry_on_global(void *data, struct wl_registry *registry, uint32_t name, cons
         display->presentation = wl_registry_bind(registry, name, &wp_presentation_interface, 1);
     } else if (strcmp(interface, zwp_idle_inhibit_manager_v1_interface.name) == 0) {
         display->idle_inhibit_manager = wl_registry_bind(registry, name, &zwp_idle_inhibit_manager_v1_interface, 1);
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+    } else if (strcmp(interface, fbx_foreign_surface_manager_interface.name) == 0) {
+        display->fsm = wl_registry_bind(registry, name, &fbx_foreign_surface_manager_interface, 1);
+#endif /* COG_ENABLE_WESTON_FOREIGN_SURFACE */
     } else {
         interface_used = FALSE;
     }
@@ -1159,6 +1168,61 @@ static const struct wpe_video_plane_display_dmabuf_receiver video_plane_display_
 };
 #endif
 
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+
+struct video_foreign_surface {
+    struct wl_subsurface *wl_subsurface;
+};
+
+static void
+destroy_video_foreign_surface(gpointer data)
+{
+    struct video_foreign_surface *surf = (struct video_foreign_surface *) data;
+
+    g_clear_pointer(&surf->wl_subsurface, wl_subsurface_destroy);
+    g_free(surf);
+}
+
+static void
+on_video_foreign_surface_receiver_handle_foreign_surface(void *data,
+                                                         struct wpe_video_foreign_surface_export *foreign_surface_export,
+                                                         uint32_t id)
+{
+    CogWlPlatform *platform = data;
+    CogWlViewport *viewport = g_ptr_array_index(platform->viewports, COG_SHELL_DEFAULT_VIEWPORT_INDEX);
+    CogWlDisplay  *display = platform->display;
+    struct video_foreign_surface *surf;
+    struct wl_surface *wl_surface;
+
+    surf = g_new0(struct video_foreign_surface, 1);
+
+    wl_surface = fbx_foreign_surface_manager_import_surface(display->fsm, id);
+    surf->wl_subsurface = wl_subcompositor_get_subsurface(display->subcompositor, wl_surface, viewport->window.wl_surface);
+    wl_surface_destroy(wl_surface);
+
+    wl_subsurface_set_desync(surf->wl_subsurface);
+    wl_subsurface_place_below(surf->wl_subsurface, viewport->window.wl_surface);
+
+    wpe_video_foreign_surface_export_set_data(foreign_surface_export, surf);
+}
+
+static void
+on_video_foreign_surface_receiver_set_position(void *data,
+                                               struct wpe_video_foreign_surface_export *foreign_surface_export,
+                                               int32_t x, int32_t y)
+{
+    struct video_foreign_surface *surf;
+
+    surf = wpe_video_foreign_surface_export_get_data(foreign_surface_export);
+    wl_subsurface_set_position(surf->wl_subsurface, x, y);
+}
+
+static const struct wpe_video_foreign_surface_receiver video_foreign_surface_receiver = {
+    .handle_foreign_surface = on_video_foreign_surface_receiver_handle_foreign_surface,
+    .set_position = on_video_foreign_surface_receiver_set_position,
+};
+#endif
+
 static gboolean
 init_wayland(CogWlPlatform *platform, GError **error)
 {
@@ -1389,6 +1453,10 @@ cog_wl_platform_setup(CogPlatform *platform, CogShell *shell G_GNUC_UNUSED, cons
 
 #if COG_ENABLE_WESTON_DIRECT_DISPLAY
     wpe_video_plane_display_dmabuf_register_receiver(&video_plane_display_dmabuf_receiver, platform);
+#endif
+
+#if COG_ENABLE_WESTON_FOREIGN_SURFACE
+    wpe_video_foreign_surface_register_receiver(&video_foreign_surface_receiver, platform);
 #endif
 
     cog_gamepad_setup(gamepad_provider_get_view_backend_for_gamepad);
