@@ -19,6 +19,8 @@
 #    include "xdg-decoration-unstable-v1-client.h"
 #endif
 
+#include "idle-inhibit-unstable-v1-client.h"
+
 #include <wayland-server.h>
 #include <wayland-util.h>
 #include <xkbcommon/xkbcommon.h>
@@ -127,6 +129,8 @@ struct _CogWlWindow {
 #if COG_HAVE_LIBPORTAL
     struct xdp_parent_wl_data xdp_parent_wl_data;
 #endif /* COG_HAVE_LIBPORTAL */
+
+    struct zwp_idle_inhibitor_v1 *idle_inhibitor;
 
     uint32_t width;
     uint32_t height;
@@ -268,6 +272,8 @@ struct _CogWlDisplay {
     struct zxdg_exporter_v2          *zxdg_exporter;
 
     struct wp_presentation *presentation;
+
+    struct zwp_idle_inhibit_manager_v1 *idle_inhibit_manager;
 
     GSource *event_src;
 };

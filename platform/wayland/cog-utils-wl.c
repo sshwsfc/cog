@@ -165,6 +165,8 @@ cog_wl_display_destroy(CogWlDisplay *display)
         wl_shell_destroy(display->shell);
     if (display->zxdg_exporter != NULL)
         zxdg_exporter_v2_destroy(display->zxdg_exporter);
+    if (display->idle_inhibit_manager)
+        zwp_idle_inhibit_manager_v1_destroy (display->idle_inhibit_manager);
 
     g_clear_pointer(&display->shm, wl_shm_destroy);
     g_clear_pointer(&display->subcompositor, wl_subcompositor_destroy);

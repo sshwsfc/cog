@@ -49,6 +49,7 @@ destroy_window(CogWlViewport *viewport)
     g_clear_pointer(&viewport->window.xdg_decoration, zxdg_toplevel_decoration_v1_destroy);
 #endif
 
+    g_clear_pointer(&viewport->window.idle_inhibitor, zwp_idle_inhibitor_v1_destroy);
     g_clear_pointer(&viewport->window.xdg_toplevel, xdg_toplevel_destroy);
     g_clear_pointer(&viewport->window.xdg_surface, xdg_surface_destroy);
     g_clear_pointer(&viewport->window.shell_surface, wl_shell_surface_destroy);
@@ -342,6 +343,11 @@ cog_wl_viewport_create_window(CogWlViewport *viewport, GError **error)
             g_warning("No available shell capable of maximizing.");
             viewport->window.is_maximized = false;
         }
+    }
+
+    if (display->idle_inhibit_manager != NULL) {
+        viewport->window.idle_inhibitor = zwp_idle_inhibit_manager_v1_create_inhibitor(
+            display->idle_inhibit_manager, viewport->window.wl_surface);
     }
 
     return TRUE;

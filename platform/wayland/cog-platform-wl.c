@@ -234,6 +234,8 @@ registry_on_global(void *data, struct wl_registry *registry, uint32_t name, cons
         display->zxdg_exporter = wl_registry_bind(registry, name, &zxdg_exporter_v2_interface, 1);
     } else if (strcmp(interface, wp_presentation_interface.name) == 0) {
         display->presentation = wl_registry_bind(registry, name, &wp_presentation_interface, 1);
+    } else if (strcmp(interface, zwp_idle_inhibit_manager_v1_interface.name) == 0) {
+        display->idle_inhibit_manager = wl_registry_bind(registry, name, &zwp_idle_inhibit_manager_v1_interface, 1);
     } else {
         interface_used = FALSE;
     }

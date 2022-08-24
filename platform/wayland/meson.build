@@ -39,6 +39,7 @@ wayland_platform_protocols = {
         ['text-input', 3],
         ['xdg-foreign', 2],
         ['xdg-decoration', 1, 'optional'],
+        ['idle-inhibit', 1],
     ],
     'weston': wayland_platform_weston_protocols,
 }
