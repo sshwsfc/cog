@@ -57,6 +57,8 @@
 #    include "weston-content-protection-client.h"
 #endif
 
+#include "idle-inhibit-unstable-v1-client.h"
+
 #ifdef COG_USE_WAYLAND_CURSOR
 #include <wayland-cursor.h>
 #endif
@@ -225,6 +227,8 @@ static struct {
     GSource *event_src;
 
     struct wl_list shm_buffer_list;
+
+    struct zwp_idle_inhibit_manager_v1 *idle_inhibit_manager;
 } wl_data = {};
 
 static struct {
@@ -254,6 +258,8 @@ static struct {
     bool is_resizing_fullscreen;
     bool is_maximized;
     bool should_resize_to_largest_output;
+
+    struct zwp_idle_inhibitor_v1 *idle_inhibitor;
 } win_data = {
     .width = DEFAULT_WIDTH,
     .height = DEFAULT_HEIGHT,
@@ -833,6 +839,10 @@ registry_global (void               *data,
         wl_data.text_input_manager_v1 = wl_registry_bind(registry, name, &zwp_text_input_manager_v1_interface, 1);
     } else if (strcmp(interface, wp_presentation_interface.name) == 0) {
         wl_data.presentation = wl_registry_bind(registry, name, &wp_presentation_interface, 1);
+    } else if (strcmp(interface, zwp_idle_inhibit_manager_v1_interface.name) == 0) {
+        wl_data.idle_inhibit_manager =
+                wl_registry_bind(registry, name,
+                                 &zwp_idle_inhibit_manager_v1_interface, 1);
     } else {
         interface_used = FALSE;
     }
@@ -1979,6 +1989,8 @@ clear_wayland (void)
 {
     g_clear_pointer(&wl_data.event_src, g_source_destroy);
 
+    if (wl_data.idle_inhibit_manager != NULL)
+        zwp_idle_inhibit_manager_v1_destroy (wl_data.idle_inhibit_manager);
     if (wl_data.xdg_shell != NULL)
         xdg_wm_base_destroy (wl_data.xdg_shell);
     if (wl_data.fshell != NULL)
@@ -2223,12 +2235,19 @@ create_window (GError **error)
         }
     }
 
+    /* FIXME: inhibit the idle for the main surface */
+    if (wl_data.idle_inhibit_manager != NULL) {
+        win_data.idle_inhibitor = zwp_idle_inhibit_manager_v1_create_inhibitor(
+                wl_data.idle_inhibit_manager, win_data.wl_surface);
+    }
+
     return TRUE;
 }
 
 static void
 destroy_window (void)
 {
+    g_clear_pointer (&win_data.idle_inhibitor, zwp_idle_inhibitor_v1_destroy);
     g_clear_pointer (&win_data.xdg_toplevel, xdg_toplevel_destroy);
     g_clear_pointer (&win_data.xdg_surface, xdg_surface_destroy);
     g_clear_pointer (&win_data.shell_surface, wl_shell_surface_destroy);

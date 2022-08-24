@@ -38,6 +38,7 @@ wayland_platform_protocols = {
         ['linux-dmabuf', 1],
         ['text-input', 1],
         ['text-input', 3],
+        ['idle-inhibit', 1],
     ],
     'weston': wayland_platform_weston_protocols,
 }
