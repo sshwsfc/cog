@@ -182,6 +182,12 @@ on_notify_web_view(CogShell *shell, GParamSpec *arg G_GNUC_UNUSED, CogLauncher *
 {
     WebKitWebView *web_view = cog_shell_get_web_view(shell);
 
+    if (!web_view) {
+        g_message("webview closed, exiting");
+        g_application_quit(G_APPLICATION(launcher));
+        return;
+    }
+
     g_signal_connect(web_view, "permission-request", G_CALLBACK(on_permission_request), launcher);
 }
 

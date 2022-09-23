@@ -154,6 +154,11 @@ static void
 cog_shell_web_view_close(WebKitWebView *view, CogShell *shell)
 {
     g_object_unref(view);
+    g_debug("webview closed");
+    if (view == PRIV(shell)->web_view) {
+        PRIV(shell)->web_view = NULL;
+        g_object_notify_by_pspec(G_OBJECT(shell), s_properties[PROP_WEB_VIEW]);
+    }
 }
 
 static void
