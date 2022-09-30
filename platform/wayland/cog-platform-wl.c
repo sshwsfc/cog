@@ -1431,7 +1431,7 @@ cog_wl_platform_setup(CogPlatform *platform, CogShell *shell G_GNUC_UNUSED, cons
 
     CogWlPlatform *self = COG_WL_PLATFORM(platform);
 
-    if (!wpe_loader_init("libWPEBackend-fdo-1.0.so")) {
+    if (!wpe_loader_init("libWPEBackend-fdo-1.0.so.1")) {
         g_set_error_literal(error,
                             COG_PLATFORM_WPE_ERROR,
                             COG_PLATFORM_WPE_ERROR_INIT,
