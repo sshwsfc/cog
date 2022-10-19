@@ -168,6 +168,7 @@ cog_shell_set_property (GObject      *object,
     CogShellPrivate *priv = PRIV(shell);
     switch (prop_id) {
         case PROP_NAME:
+            g_free(priv->name);
             priv->name = g_value_dup_string(value);
             break;
         case PROP_WEB_SETTINGS:
@@ -175,6 +176,7 @@ cog_shell_set_property (GObject      *object,
             priv->web_settings = g_value_dup_object(value);
             break;
         case PROP_CONFIG_FILE:
+            g_clear_pointer(&priv->config_file, g_key_file_unref);
             priv->config_file = g_value_dup_boxed(value);
             break;
         case PROP_DEVICE_SCALE_FACTOR:
