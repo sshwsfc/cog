@@ -7,6 +7,7 @@
  */
 
 #include "cog-launcher.h"
+#include <fbxapp.h>
 #include <glib-unix.h>
 #include <math.h>
 #include <stdlib.h>
@@ -306,10 +307,94 @@ cog_launcher_create_view(CogLauncher *self, CogShell *shell)
     return g_steal_pointer(&web_view);
 }
 
+typedef struct _FbxAppSource FbxAppSource;
+
+struct _FbxAppSource {
+    GSource        source;
+    GPollFD        pfd;
+    struct fbxapp *fbxapp;
+};
+
+static gboolean
+fbxapp_source_prepare(GSource *base, gint *timeout)
+{
+    *timeout = -1;
+    return FALSE;
+}
+
+static gboolean
+fbxapp_source_check(GSource *base)
+{
+    FbxAppSource *source = (FbxAppSource *) base;
+
+    return source->pfd.revents & G_IO_IN;
+}
+
+static gboolean
+fbxapp_source_dispatch(GSource *base, GSourceFunc callback, gpointer data)
+{
+    FbxAppSource *source = (FbxAppSource *) base;
+
+    if (fbxapp_client_fd_read_handle(source->fbxapp) == FBXAPP_OK)
+        return G_SOURCE_CONTINUE;
+
+    return G_SOURCE_REMOVE;
+}
+
+static void
+fbxapp_source_finalize(GSource *base)
+{
+    FbxAppSource *source = (FbxAppSource *) base;
+
+    fbxapp_client_destroy(source->fbxapp);
+}
+
+static GSourceFuncs fbxapp_source_funcs = {.prepare = fbxapp_source_prepare,
+                                           .check = fbxapp_source_check,
+                                           .dispatch = fbxapp_source_dispatch,
+                                           .finalize = fbxapp_source_finalize};
+
+GSource *
+fbxapp_source_new(struct fbxapp *fbxapp)
+{
+    FbxAppSource *source;
+
+    source = (FbxAppSource *) g_source_new(&fbxapp_source_funcs, sizeof(FbxAppSource));
+    source->fbxapp = fbxapp;
+    source->pfd.fd = fbxapp_client_fd_get(fbxapp);
+    source->pfd.events = G_IO_IN | G_IO_ERR;
+    g_source_add_poll(&source->source, &source->pfd);
+    g_source_set_can_recurse(&source->source, TRUE);
+
+    return &source->source;
+}
+
+static void
+app_url_handle(void *priv, const char *action, const char *url, const char *media_type)
+{
+    CogShell *shell = (CogShell *) priv;
+
+    if (!g_str_has_prefix(url, "http"))
+        return;
+    webkit_web_view_load_uri(cog_shell_get_web_view(shell), url);
+    g_message("fbx app_url_handle %s -> %s", action, url);
+}
+
+static void
+app_job_state_set(void *priv, enum fbxapp_job_state state, uint32_t code)
+{
+}
+
+static const struct fbxapp_client_handler app_handler = {
+    .url_handle = app_url_handle,
+    .job_state_set = app_job_state_set,
+};
+
 static void
 cog_launcher_startup(GApplication *application)
 {
-    const gchar * const *locales;
+    const gchar *const *locales;
+    struct fbxapp      *fbxapp;
 
     G_APPLICATION_CLASS(cog_launcher_parent_class)->startup(application);
 
@@ -329,6 +414,11 @@ cog_launcher_startup(GApplication *application)
         "web-memory-settings", self->web_mem_settings, "network-memory-settings", self->net_mem_settings,
 #endif /* COG_HAVE_MEM_PRESSURE */
         NULL);
+
+    fbxapp = fbxapp_client_create(&app_handler, self->shell);
+    if (fbxapp)
+        g_source_attach(fbxapp_source_new(fbxapp), NULL);
+
     g_signal_connect_swapped(self->shell, "create-view", G_CALLBACK(cog_launcher_create_view), self);
     g_signal_connect(self->shell, "notify::web-view", G_CALLBACK(on_notify_web_view), self);
 
