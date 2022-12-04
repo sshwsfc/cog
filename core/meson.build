@@ -63,7 +63,7 @@ if (gamepad_manette)
     cogcore_dependencies += manette_dep
 endif
 
-cogcore_lib = shared_library('cogcore',
+cogcore_lib = library('cogcore',
     cogcore_config_h,
     cogcore_sources,
     c_args: ['-DG_LOG_DOMAIN="Cog-Core"'],
