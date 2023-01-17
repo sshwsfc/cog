@@ -174,6 +174,8 @@ static struct {
     struct wl_seat *seat;
     uint32_t event_serial;
 
+    guint override_device_scale;
+
 #if COG_ENABLE_WESTON_DIRECT_DISPLAY
     struct zwp_linux_dmabuf_v1 *dmabuf;
     struct weston_direct_display_v1 *direct_display;
@@ -643,8 +645,10 @@ output_handle_done(void *data, struct wl_output *output)
         metrics->refresh = 60 * 1000;
     }
 
-    if (!metrics->scale) {
-        g_warning("No scale factor reported for output %p, using 1x", output);
+    if (wl_data.override_device_scale) {
+        metrics->scale = wl_data.override_device_scale;
+    } else if (!metrics->scale) {
+        g_info("No scale factor reported for output %p, using 1x", output);
         metrics->scale = 1;
     }
 
@@ -2522,6 +2526,12 @@ cog_wl_platform_setup(CogPlatform *platform, CogShell *shell G_GNUC_UNUSED, cons
                              COG_PLATFORM_WPE_ERROR_INIT,
                              "Failed to set backend library name");
         return FALSE;
+    }
+
+    gdouble scale_factor = cog_shell_get_device_scale_factor (shell);
+    if (scale_factor > 0.0) {
+        wl_data.override_device_scale = MAX(scale_factor, 1.0);
+        g_message ("override default device scale, using %d", wl_data.override_device_scale);
     }
 
     if (!init_wayland (error))

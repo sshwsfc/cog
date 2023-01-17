@@ -65,7 +65,7 @@ static struct {
     gboolean disable_key_bindings;
 } s_options = {
     .scale_factor = 1.0,
-    .device_scale_factor = 1.0,
+    .device_scale_factor = 0.0,
 };
 
 #if !GLIB_CHECK_VERSION(2, 56, 0)
