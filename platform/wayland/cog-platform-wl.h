@@ -28,6 +28,7 @@ struct _CogWlPlatform {
     CogWlDisplay *display;
     CogWlPopup   *popup;
     GPtrArray    *viewports;
+    guint override_device_scale;
 };
 
 /*

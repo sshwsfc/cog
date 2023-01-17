@@ -69,7 +69,7 @@ static struct {
 #endif
 } s_options = {
     .scale_factor = 1.0,
-    .device_scale_factor = 1.0,
+    .device_scale_factor = 0.0,
 #if HAVE_WEBKIT_AUTOPLAY
     .autoplay_policy = WEBKIT_AUTOPLAY_ALLOW_WITHOUT_SOUND,
 #endif

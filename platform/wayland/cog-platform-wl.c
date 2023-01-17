@@ -126,8 +126,10 @@ output_handle_done(void *data, struct wl_output *output)
         metrics->refresh = 60 * 1000;
     }
 
-    if (!metrics->scale) {
-        g_warning("No scale factor reported for output %p, using 1x", output);
+    if (platform->override_device_scale) {
+        metrics->scale = platform->override_device_scale;
+    } else if (!metrics->scale) {
+        g_info("No scale factor reported for output %p, using 1x", output);
         metrics->scale = 1;
     }
 
@@ -1425,7 +1427,7 @@ cog_wl_platform_on_notify_visible_view(CogWlPlatform *self, GParamSpec *pspec G_
 }
 
 static gboolean
-cog_wl_platform_setup(CogPlatform *platform, CogShell *shell G_GNUC_UNUSED, const char *params, GError **error)
+cog_wl_platform_setup(CogPlatform *platform, CogShell *shell, const char *params, GError **error)
 {
     g_return_val_if_fail(COG_IS_SHELL(shell), FALSE);
 
@@ -1437,6 +1439,12 @@ cog_wl_platform_setup(CogPlatform *platform, CogShell *shell G_GNUC_UNUSED, cons
                             COG_PLATFORM_WPE_ERROR_INIT,
                             "Failed to set backend library name");
         return FALSE;
+    }
+
+    gdouble scale_factor = cog_shell_get_device_scale_factor(shell);
+    if (scale_factor > 0.0) {
+        self->override_device_scale = MAX(scale_factor, 1.0);
+        g_message ("override default device scale, using %d", self->override_device_scale);
     }
 
     if (!init_wayland(COG_WL_PLATFORM(platform), error))
