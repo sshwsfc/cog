@@ -66,6 +66,7 @@ static void presentation_feedback_on_sync_output(void *, struct wp_presentation_
 
 static void on_export_shm_buffer(void *, struct wpe_fdo_shm_exported_buffer *);
 static void on_export_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image);
+static void on_unexport_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image);
 static void on_mouse_target_changed(WebKitWebView *, WebKitHitTestResult *hitTestResult, guint mouseModifiers);
 #if COG_HAVE_LIBPORTAL
 static void on_run_file_chooser(WebKitWebView *, WebKitFileChooserRequest *);
@@ -78,6 +79,12 @@ static struct shm_buffer *shm_buffer_create(CogWlView *, struct wl_resource *, s
 static void               shm_buffer_destroy_notify(struct wl_listener *, void *);
 static struct shm_buffer *shm_buffer_for_resource(CogWlView *, struct wl_resource *);
 static void               shm_buffer_on_release(void *, struct wl_buffer *);
+
+struct egl_exported_buffer {
+    CogWlView *view;
+    struct wpe_fdo_egl_exported_image *image;
+    struct wl_buffer *wl_buffer;
+};
 
 /*
  * CogWlView instantiation.
@@ -176,6 +183,7 @@ cog_wl_view_create_backend(CogView *view)
 
     static const struct wpe_view_backend_exportable_fdo_egl_client client = {
         .export_fdo_egl_image = on_export_wl_egl_image,
+        .unexport_fdo_egl_image = on_unexport_wl_egl_image,
         .export_shm_buffer = on_export_shm_buffer,
     };
 
@@ -278,9 +286,10 @@ cog_wl_view_handle_dom_fullscreen_request(void *data, bool fullscreen)
 }
 
 static void
-cog_wl_view_on_buffer_release(void *data G_GNUC_UNUSED, struct wl_buffer *buffer)
+cog_wl_view_on_buffer_release(void *data, struct wl_buffer *buffer)
 {
-    wl_buffer_destroy(buffer);
+    struct egl_exported_buffer *exp_buffer = data;
+    wpe_view_backend_exportable_fdo_egl_dispatch_release_exported_image(exp_buffer->view->exportable, exp_buffer->image);
 }
 
 static void
@@ -366,21 +375,33 @@ cog_wl_view_update_surface_contents(CogWlView *view)
         }
     }
 
-    static PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWL s_eglCreateWaylandBufferFromImageWL;
-    if (G_UNLIKELY(s_eglCreateWaylandBufferFromImageWL == NULL)) {
-        s_eglCreateWaylandBufferFromImageWL =
-            (PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWL) load_egl_proc_address("eglCreateWaylandBufferFromImageWL");
-        g_assert(s_eglCreateWaylandBufferFromImageWL);
+    struct wl_buffer *wl_buffer;
+    struct egl_exported_buffer *exp_buffer = wpe_fdo_egl_exported_image_get_user_data(view->image);
+    if (exp_buffer) {
+        wl_buffer = exp_buffer->wl_buffer;
+    } else {
+        static PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWL s_eglCreateWaylandBufferFromImageWL;
+        if (G_UNLIKELY(s_eglCreateWaylandBufferFromImageWL == NULL)) {
+            s_eglCreateWaylandBufferFromImageWL =
+                (PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWL) load_egl_proc_address("eglCreateWaylandBufferFromImageWL");
+            g_assert(s_eglCreateWaylandBufferFromImageWL);
+        }
+
+        wl_buffer = s_eglCreateWaylandBufferFromImageWL(
+            platform->display->egl_display, wpe_fdo_egl_exported_image_get_egl_image(view->image));
+        g_assert(wl_buffer);
+
+        exp_buffer = g_new0(struct egl_exported_buffer, 1);
+        exp_buffer->view = view;
+        exp_buffer->image = view->image;
+        exp_buffer->wl_buffer = wl_buffer;
+
+        static const struct wl_buffer_listener buffer_listener = {.release = cog_wl_view_on_buffer_release};
+        wl_buffer_add_listener(wl_buffer, &buffer_listener, exp_buffer);
+        wpe_fdo_egl_exported_image_set_user_data (view->image, exp_buffer);
     }
 
-    struct wl_buffer *buffer = s_eglCreateWaylandBufferFromImageWL(
-        platform->display->egl_display, wpe_fdo_egl_exported_image_get_egl_image(view->image));
-    g_assert(buffer);
-
-    static const struct wl_buffer_listener buffer_listener = {.release = cog_wl_view_on_buffer_release};
-    wl_buffer_add_listener(buffer, &buffer_listener, NULL);
-
-    wl_surface_attach(surface, buffer, 0, 0);
+    wl_surface_attach(surface, wl_buffer, 0, 0);
     wl_surface_damage(surface, 0, 0, surface_pixel_width, surface_pixel_height);
 
     cog_wl_view_request_frame(view);
@@ -467,6 +488,19 @@ on_export_shm_buffer(void *data, struct wpe_fdo_shm_exported_buffer *exported_bu
 }
 
 static void
+on_unexport_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image)
+{
+    struct egl_exported_buffer *buffer;
+
+    buffer = wpe_fdo_egl_exported_image_get_user_data(image);
+    if (!buffer)
+        return;
+
+    wl_buffer_destroy(buffer->wl_buffer);
+    g_free(buffer);
+}
+
+static void
 on_export_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image)
 {
     CogWlView               *self = data;
@@ -479,9 +513,6 @@ on_export_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image)
         wpe_view_backend_exportable_fdo_egl_dispatch_release_exported_image(self->exportable, image);
         return;
     }
-
-    if (self->image)
-        wpe_view_backend_exportable_fdo_egl_dispatch_release_exported_image(self->exportable, self->image);
 
     self->image = image;
 
