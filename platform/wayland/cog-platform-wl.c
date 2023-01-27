@@ -331,7 +331,6 @@ static struct {
 static struct {
     struct wpe_view_backend *backend;
     struct wpe_fdo_egl_exported_image *image;
-    struct wl_buffer *buffer;
     struct wl_callback *frame_callback;
     bool should_update_opaque_region;
 } wpe_view_data = {
@@ -1604,7 +1603,6 @@ on_buffer_release (void* data, struct wl_buffer* buffer)
     struct wpe_fdo_egl_exported_image * image = data;
     wpe_view_backend_exportable_fdo_egl_dispatch_release_exported_image (wpe_host_data.exportable,
                                                                          image);
-    g_clear_pointer (&buffer, wl_buffer_destroy);
 }
 
 static const struct wl_buffer_listener buffer_listener = {
@@ -1643,6 +1641,16 @@ static const struct wl_buffer_listener dmabuf_buffer_listener = {
 #endif /* COG_ENABLE_WESTON_DIRECT_DISPLAY */
 
 static void
+on_unexport_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image)
+{
+    struct wl_buffer *buffer;
+
+    buffer = wpe_fdo_egl_exported_image_get_user_data (image);
+    if (buffer)
+        wl_buffer_destroy (buffer);
+}
+
+static void
 on_export_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image)
 {
     const uint32_t surface_pixel_width = wl_data.current_output->scale * win_data.width;
@@ -1674,19 +1682,24 @@ on_export_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image)
         }
     }
 
-    static PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWL
-        s_eglCreateWaylandBufferFromImageWL;
-    if (s_eglCreateWaylandBufferFromImageWL == NULL) {
-        s_eglCreateWaylandBufferFromImageWL = (PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWL)
-            load_egl_proc_address ("eglCreateWaylandBufferFromImageWL");
-        g_assert (s_eglCreateWaylandBufferFromImageWL);
+    struct wl_buffer *buffer = wpe_fdo_egl_exported_image_get_user_data (image);
+    if (!buffer) {
+        static PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWL
+            s_eglCreateWaylandBufferFromImageWL;
+        if (s_eglCreateWaylandBufferFromImageWL == NULL) {
+            s_eglCreateWaylandBufferFromImageWL = (PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWL)
+                load_egl_proc_address ("eglCreateWaylandBufferFromImageWL");
+            g_assert (s_eglCreateWaylandBufferFromImageWL);
+        }
+
+        buffer = s_eglCreateWaylandBufferFromImageWL (egl_data.display, wpe_fdo_egl_exported_image_get_egl_image (wpe_view_data.image));
+        g_assert (buffer);
+
+        wl_buffer_add_listener(buffer, &buffer_listener, image);
+        wpe_fdo_egl_exported_image_set_user_data (image, buffer);
     }
 
-    wpe_view_data.buffer = s_eglCreateWaylandBufferFromImageWL (egl_data.display, wpe_fdo_egl_exported_image_get_egl_image (wpe_view_data.image));
-    g_assert (wpe_view_data.buffer);
-    wl_buffer_add_listener(wpe_view_data.buffer, &buffer_listener, image);
-
-    wl_surface_attach (win_data.wl_surface, wpe_view_data.buffer, 0, 0);
+    wl_surface_attach (win_data.wl_surface, buffer, 0, 0);
     wl_surface_damage(win_data.wl_surface, 0, 0, surface_pixel_width, surface_pixel_height);
 
     request_frame ();
@@ -2588,7 +2601,6 @@ cog_wl_platform_finalize(GObject *object)
         wpe_view_backend_exportable_fdo_egl_dispatch_release_exported_image(wpe_host_data.exportable,
                                                                             wpe_view_data.image);
     }
-    g_clear_pointer (&wpe_view_data.buffer, wl_buffer_destroy);
 
     /* @FIXME: check why this segfaults
     wpe_view_backend_destroy (wpe_view_data.backend);
@@ -2615,6 +2627,7 @@ cog_wl_platform_get_view_backend(CogPlatform *platform, WebKitWebView *related_v
 {
     static struct wpe_view_backend_exportable_fdo_egl_client exportable_egl_client = {
         .export_fdo_egl_image = on_export_wl_egl_image,
+        .unexport_fdo_egl_image = on_unexport_wl_egl_image,
 #if HAVE_SHM_EXPORTED_BUFFER
         .export_shm_buffer = on_export_shm_buffer,
 #endif
