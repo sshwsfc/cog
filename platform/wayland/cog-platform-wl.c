@@ -276,12 +276,15 @@ static struct {
     bool is_maximized;
     bool should_resize_to_largest_output;
 
+    bool configured;
+
     struct zwp_idle_inhibitor_v1 *idle_inhibitor;
 } win_data = {
     .width = DEFAULT_WIDTH,
     .height = DEFAULT_HEIGHT,
     .width_before_fullscreen = DEFAULT_WIDTH,
     .height_before_fullscreen = DEFAULT_HEIGHT,
+    .configured = false,
 };
 
 static struct {
@@ -452,6 +455,8 @@ configure_surface_geometry(int32_t width, int32_t height)
         win_data.height = height;
         wpe_view_data.should_update_opaque_region = true;
     }
+
+    win_data.configured = true;
 }
 
 static void
@@ -553,7 +558,9 @@ xdg_toplevel_on_configure(void *data,
 
     g_debug("New XDG toplevel configuration: (%" PRIu32 ", %" PRIu32 ")", width, height);
 
-    resize_window();
+    if (wpe_view_data.backend != NULL) {
+        resize_window();
+    }
 }
 
 static void
@@ -2612,6 +2619,9 @@ cog_wl_platform_get_view_backend(CogPlatform *platform, WebKitWebView *related_v
         .export_shm_buffer = on_export_shm_buffer,
 #endif
     };
+
+    while (!win_data.configured)
+        wl_display_dispatch(wl_data.display);
 
     wpe_host_data.exportable =
         wpe_view_backend_exportable_fdo_egl_create(&exportable_egl_client, NULL, win_data.width, win_data.height);
