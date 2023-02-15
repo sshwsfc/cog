@@ -1671,7 +1671,7 @@ on_export_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image)
 
     if (wpe_view_data.should_update_opaque_region) {
         wpe_view_data.should_update_opaque_region = false;
-        if (win_data.is_fullscreen) {
+        if (0 && win_data.is_fullscreen) {
           struct wl_region *region =
               wl_compositor_create_region (wl_data.compositor);
           wl_region_add (region, 0, 0, win_data.width, win_data.height);
