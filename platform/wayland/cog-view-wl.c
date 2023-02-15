@@ -356,7 +356,7 @@ cog_wl_view_update_surface_contents(CogWlView *view)
         WebKitColor bg_color;
         webkit_web_view_get_background_color(WEBKIT_WEB_VIEW(view), &bg_color);
 
-        if (viewport->window.is_fullscreen || !cog_wl_view_background_has_alpha(COG_WL_VIEW(view))) {
+        if (0 && (viewport->window.is_fullscreen || !cog_wl_view_background_has_alpha(COG_WL_VIEW(view)))) {
             struct wl_region *region = wl_compositor_create_region(platform->display->compositor);
             wl_region_add(region, 0, 0, viewport->window.width, viewport->window.height);
             wl_surface_set_opaque_region(surface, region);
