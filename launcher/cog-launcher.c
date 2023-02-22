@@ -31,7 +31,10 @@ static struct {
     };
     gboolean version;
     gboolean print_appid;
-    gboolean doc_viewer;
+    union {
+        char             *cache_model_name;
+        WebKitCacheModel  cache_model;
+    };
     gdouble  scale_factor;
     gdouble  device_scale_factor;
     union {
@@ -233,9 +236,7 @@ cog_launcher_create_view(CogLauncher *self, CogShell *shell)
 
     WebKitWebContext *web_context = cog_shell_get_web_context(shell);
 
-    if (s_options.doc_viewer) {
-        webkit_web_context_set_cache_model(web_context, WEBKIT_CACHE_MODEL_DOCUMENT_VIEWER);
-    }
+    webkit_web_context_set_cache_model(web_context, s_options.cache_model);
 
     g_autoptr(GError) error = NULL;
     CogPlatform      *platform =
@@ -1151,11 +1152,9 @@ static GOptionEntry s_cli_options[] = {
      "Zoom/Scaling factor applied to Web content (default: 1.0, no scaling)", "FACTOR"},
     {"device-scale", '\0', 0, G_OPTION_ARG_DOUBLE, &s_options.device_scale_factor,
      "Output device scaling factor (default: 1.0, no scaling, 96 DPI)", "FACTOR"},
-    {"doc-viewer", '\0', 0, G_OPTION_ARG_NONE, &s_options.doc_viewer,
-     "Document viewer mode: optimizes for local loading of Web content. "
-     "This reduces memory usage at the cost of reducing caching of "
-     "resources loaded from the network.",
-     NULL},
+    {"cache-model", '\0', 0, G_OPTION_ARG_STRING, &s_options.cache_model_name,
+     "Cache model used to store resources downloaded from the network in memory and on disk: web-browser (default), document-browser, document-viewer",
+     "MODEL"},
     {"dir-handler", 'd', 0, G_OPTION_ARG_STRING_ARRAY, &s_options.dir_handlers,
      "Add a URI scheme handler for a directory", "SCHEME:PATH"},
     {"webprocess-failure", '\0', 0, G_OPTION_ARG_STRING, &s_options.on_failure.action_name,
@@ -1237,6 +1236,31 @@ cog_launcher_constructed(GObject *object)
 #endif
 }
 
+static bool
+string_to_cache_model(const char *name, WebKitCacheModel *cache_model)
+{
+    static const struct {
+        const char       *name;
+        WebKitCacheModel  cache_model;
+    } map[] = {
+        {"web-browser", WEBKIT_CACHE_MODEL_WEB_BROWSER},
+        {"document-browser", WEBKIT_CACHE_MODEL_DOCUMENT_BROWSER},
+        {"document-viewer", WEBKIT_CACHE_MODEL_DOCUMENT_VIEWER},
+    };
+
+    if (!name || !cache_model)
+        return false;
+
+    for (unsigned i = 0; i < G_N_ELEMENTS(map); i++) {
+        if (strcmp(name, map[i].name) == 0) {
+            *cache_model = map[i].cache_model;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static int
 string_to_webprocess_fail_action(const char *action)
 {
@@ -1300,6 +1324,18 @@ cog_launcher_handle_local_options(GApplication *application, GVariantDict *optio
         if (appid)
             g_print("%s\n", appid);
         return EXIT_SUCCESS;
+    }
+
+    if (!s_options.cache_model_name) {
+        s_options.cache_model = WEBKIT_CACHE_MODEL_WEB_BROWSER;
+    } else {
+        WebKitCacheModel cache_model;
+        if (!string_to_cache_model(s_options.cache_model_name, &cache_model)) {
+            g_printerr("Invalid cache model: '%s'\n", s_options.cache_model_name);
+            return EXIT_FAILURE;
+        }
+        g_clear_pointer(&s_options.cache_model_name, g_free);
+        s_options.cache_model = cache_model;
     }
 
     {
