@@ -448,6 +448,18 @@ configure_surface_geometry(int32_t width, int32_t height)
             height = DEFAULT_HEIGHT;
     }
 
+    env_var = g_getenv("COG_VIEW_SIZE");
+    if (!g_strcmp0(env_var, "tv")) {
+        g_debug("Forcing view to use a standard tv size");
+        if (height <= 720) {
+            width = 1280;
+            height = 720;
+        } else {
+            width = 1920;
+            height = 1080;
+        }
+    }
+
     if (win_data.width != width || win_data.height != height) {
         g_debug("Configuring new size: %" PRId32 "x%" PRId32, width, height);
         win_data.width = width;
