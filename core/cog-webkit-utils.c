@@ -26,6 +26,20 @@ static const char error_message_template[] =
     "<button onclick=\"window.location.href = '%s'\" class=\"try-again\">Try again</button>"
     "</body></html>";
 
+static const char error_message_fbx_template[] =
+    "<!DOCTYPE html>\n"
+    "<html><head><title></title><style type='text/css'>\n"
+    "html { background: #202020; color: #0f0f0f; }\n"
+    "h3 { font-size: 40px; font-weight: 600; color: #ffffff; border-radius: 3px; padding: 0.15em 0.5em; margin-bottom: 0.25em }\n"
+    "p { margin-left: 0.5em; margin-right: 0.5em }\n"
+    "p.uri { size: 70%%; font-family: monospace; color: #888; margin-left: 0.75em; margin-top: 0 }\n"
+    ".try-again { text-align: center; font-size: 1em; height: 100%%; margin: 1em }\n"
+    "</style></head><body><div style=\"margin-top: 200px\"><center>\n"
+    "<h3>Désolé, cette application n'est pas disponible.</h3>\n"
+    "<h3>Veuillez réessayer ultérieurement</h3>\n"
+    "<h3><button onclick=\"window.location.href = '%s'\" class=\"try-again\" autofocus>Réessayer</button></h3>\n"
+    "</center></div></body></html>";
+
 gboolean
 load_error_page (WebKitWebView *web_view,
                  const char    *failing_uri,
@@ -34,7 +48,7 @@ load_error_page (WebKitWebView *web_view,
 {
     g_warning ("<%s> %s: %s", failing_uri, title, message);
 
-    g_autofree char *html = g_strdup_printf(error_message_template, title, title, failing_uri, message, failing_uri);
+    g_autofree char *html = g_strdup_printf(error_message_fbx_template, failing_uri);
     webkit_web_view_load_alternate_html (web_view,
                                          html,
                                          failing_uri,
