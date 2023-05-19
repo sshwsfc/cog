@@ -240,6 +240,18 @@ cog_wl_viewport_configure_geometry(CogWlViewport *viewport, int32_t width, int32
     g_return_if_fail(width > 0);
     g_return_if_fail(height > 0);
 
+    const gchar *env_var = g_getenv("COG_VIEW_SIZE");
+    if (!g_strcmp0(env_var, "tv")) {
+        g_debug("Forcing view to use a standard tv size");
+        if (height <= 720) {
+            width = 1280;
+            height = 720;
+        } else {
+            width = 1920;
+            height = 1080;
+        }
+    }
+
     if (viewport->window.width != width || viewport->window.height != height) {
         g_debug("Configuring new size: %" PRId32 "x%" PRId32, width, height);
         viewport->window.width = width;
