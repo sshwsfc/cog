@@ -384,8 +384,6 @@ cog_wl_viewport_enter_fullscreen(CogWlViewport *viewport)
         g_assert_not_reached();
     }
 
-    cog_wl_viewport_resize_to_largest_output(viewport);
-
     if (!cog_viewport_get_n_views(COG_VIEWPORT(viewport))) {
         g_debug("%s: No views in viewport, will not fullscreen.", G_STRFUNC);
         return;
