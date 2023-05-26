@@ -733,9 +733,7 @@ cog_wl_set_fullscreen(void *unused, bool fullscreen)
         win_data.is_resizing_fullscreen = true;
         win_data.width_before_fullscreen = win_data.width;
         win_data.height_before_fullscreen = win_data.height;
-        resize_to_largest_output();
-        if (cog_wl_does_image_match_win_size(wpe_view_data.image))
-            cog_wl_fullscreen_image_ready();
+        cog_wl_fullscreen_image_ready();
     } else {
         if (wl_data.xdg_shell != NULL) {
             xdg_toplevel_unset_fullscreen(win_data.xdg_toplevel);
