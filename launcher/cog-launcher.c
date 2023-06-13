@@ -1194,13 +1194,16 @@ cog_launcher_constructed(GObject *object)
 
     CogLauncher *launcher = COG_LAUNCHER(object);
 
+    g_autofree char *data_dir = g_build_filename(g_get_user_data_dir(), g_get_prgname(), NULL);
+    g_autofree char *cache_dir = g_build_filename(g_get_user_cache_dir(), g_get_prgname(), NULL);
+
+    g_mkdir_with_parents(data_dir, 0755);
+    g_mkdir_with_parents(cache_dir, 0755);
+
 #if COG_USE_WPE2
     if (!launcher->automated)
         launcher->network_session = webkit_network_session_new(NULL, NULL);
 #else
-
-    g_autofree char *data_dir = g_build_filename(g_get_user_data_dir(), g_get_prgname(), NULL);
-    g_autofree char *cache_dir = g_build_filename(g_get_user_cache_dir(), g_get_prgname(), NULL);
 
     launcher->web_data_manager = g_object_new(WEBKIT_TYPE_WEBSITE_DATA_MANAGER, "is-ephemeral", launcher->automated,
                                               "base-data-directory", data_dir, "base-cache-directory", cache_dir, NULL);
