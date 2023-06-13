@@ -21,6 +21,7 @@ print_module_info(GIOExtension *extension, void *userdata G_GNUC_UNUSED)
 int
 main(int argc, char *argv[])
 {
+    g_set_prgname("cog");
     g_set_application_name("Cog");
 
     g_info("%s:", COG_MODULES_PLATFORM_EXTENSION_POINT);
