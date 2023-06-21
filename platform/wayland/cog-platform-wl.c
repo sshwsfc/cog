@@ -429,6 +429,11 @@ static void display_popup(void);
 static void update_popup(void);
 static void destroy_popup(void);
 
+static int get_output_scale(struct output_metrics *output)
+{
+    return output ? output->scale : 1;
+}
+
 static void
 configure_surface_geometry(int32_t width, int32_t height)
 {
@@ -473,6 +478,9 @@ configure_surface_geometry(int32_t width, int32_t height)
 static void
 resize_window(void)
 {
+    if (!wl_data.current_output)
+        return;
+
     int32_t pixel_width = win_data.width * wl_data.current_output->scale;
     int32_t pixel_height = win_data.height * wl_data.current_output->scale;
 
@@ -935,13 +943,15 @@ pointer_on_leave(void *data, struct wl_pointer *pointer, uint32_t serial, struct
 static void
 pointer_on_motion(void *data, struct wl_pointer *pointer, uint32_t time, wl_fixed_t fixed_x, wl_fixed_t fixed_y)
 {
+    int scale = get_output_scale(wl_data.current_output);
+
     wl_data.pointer.x = wl_fixed_to_int(fixed_x);
     wl_data.pointer.y = wl_fixed_to_int(fixed_y);
 
     struct wpe_input_pointer_event event = {wpe_input_pointer_event_type_motion,
                                             time,
-                                            wl_data.pointer.x * wl_data.current_output->scale,
-                                            wl_data.pointer.y * wl_data.current_output->scale,
+                                            wl_data.pointer.x * scale,
+                                            wl_data.pointer.y * scale,
                                             wl_data.pointer.button,
                                             wl_data.pointer.state};
 
@@ -956,6 +966,8 @@ pointer_on_button(void *data,
                   uint32_t button,
                   uint32_t state)
 {
+    int scale = get_output_scale(wl_data.current_output);
+
     wl_data.event_serial = serial;
 
     /* @FIXME: what is this for?
@@ -971,8 +983,8 @@ pointer_on_button(void *data,
     struct wpe_input_pointer_event event = {
         wpe_input_pointer_event_type_button,
         time,
-        wl_data.pointer.x * wl_data.current_output->scale,
-        wl_data.pointer.y * wl_data.current_output->scale,
+        wl_data.pointer.x * scale,
+        wl_data.pointer.y * scale,
         wl_data.pointer.button,
         wl_data.pointer.state,
     };
@@ -999,14 +1011,16 @@ dispatch_axis_event()
     if (!wl_data.axis.has_delta)
         return;
 
+    int scale = get_output_scale(wl_data.current_output);
+
     struct wpe_input_axis_2d_event event = { 0, };
     event.base.type = wpe_input_axis_event_type_mask_2d | wpe_input_axis_event_type_motion_smooth;
     event.base.time = wl_data.axis.time;
-    event.base.x = wl_data.pointer.x * wl_data.current_output->scale;
-    event.base.y = wl_data.pointer.y * wl_data.current_output->scale;
+    event.base.x = wl_data.pointer.x * scale;
+    event.base.y = wl_data.pointer.y * scale;
 
-    event.x_axis = wl_fixed_to_double(wl_data.axis.x_delta) * wl_data.current_output->scale;
-    event.y_axis = -wl_fixed_to_double(wl_data.axis.y_delta) * wl_data.current_output->scale;
+    event.x_axis = wl_fixed_to_double(wl_data.axis.x_delta) * scale;
+    event.y_axis = -wl_fixed_to_double(wl_data.axis.y_delta) * scale;
 
     wpe_view_backend_dispatch_axis_event(wpe_view_data.backend, &event.base);
 
@@ -1320,6 +1334,8 @@ touch_on_down (void *data,
                wl_fixed_t x,
                wl_fixed_t y)
 {
+    int scale = get_output_scale(wl_data.current_output);
+
     wl_data.touch.surface = surface;
     wl_data.event_serial = serial;
 
@@ -1330,8 +1346,8 @@ touch_on_down (void *data,
         wpe_input_touch_event_type_down,
         time,
         id,
-        wl_fixed_to_int(x) * wl_data.current_output->scale,
-        wl_fixed_to_int(y) * wl_data.current_output->scale,
+        wl_fixed_to_int(x) * scale,
+        wl_fixed_to_int(y) * scale,
     };
 
     memcpy (&wl_data.touch.points[id],
@@ -1423,6 +1439,8 @@ touch_on_motion (void *data,
                  wl_fixed_t x,
                  wl_fixed_t y)
 {
+    int scale = get_output_scale(wl_data.current_output);
+
     if (id < 0 || id >= 10)
         return;
 
@@ -1430,8 +1448,8 @@ touch_on_motion (void *data,
         wpe_input_touch_event_type_motion,
         time,
         id,
-        wl_fixed_to_int(x) * wl_data.current_output->scale,
-        wl_fixed_to_int(y) * wl_data.current_output->scale,
+        wl_fixed_to_int(x) * scale,
+        wl_fixed_to_int(y) * scale,
     };
 
     memcpy (&wl_data.touch.points[id],
@@ -1536,6 +1554,8 @@ registry_global_remove (void *data, struct wl_registry *registry, uint32_t name)
             wl_data.metrics[i].output = NULL;
             wl_data.metrics[i].name = 0;
             g_debug ("Removed output %i\n", name);
+            if (wl_data.current_output == &wl_data.metrics[i])
+                wl_data.current_output = NULL;
             break;
         }
     }
@@ -1663,8 +1683,9 @@ on_unexport_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image)
 static void
 on_export_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image)
 {
-    const uint32_t surface_pixel_width = wl_data.current_output->scale * win_data.width;
-    const uint32_t surface_pixel_height = wl_data.current_output->scale * win_data.height;
+    int scale = get_output_scale(wl_data.current_output);
+    const uint32_t surface_pixel_width = scale * win_data.width;
+    const uint32_t surface_pixel_height = scale * win_data.height;
 
     if (surface_pixel_width != wpe_fdo_egl_exported_image_get_width(image) ||
         surface_pixel_height != wpe_fdo_egl_exported_image_get_height(image)) {
@@ -1710,7 +1731,7 @@ on_export_wl_egl_image(void *data, struct wpe_fdo_egl_exported_image *image)
     }
 
     wl_surface_attach (win_data.wl_surface, buffer, 0, 0);
-    wl_surface_damage(win_data.wl_surface, 0, 0, surface_pixel_width, surface_pixel_height);
+    wl_surface_damage(win_data.wl_surface, 0, 0, INT32_MAX, INT32_MAX);
 
     request_frame ();
 
@@ -2363,20 +2384,20 @@ destroy_window (void)
 static void
 create_popup (WebKitOptionMenu *option_menu)
 {
+    int scale = get_output_scale(wl_data.current_output);
     popup_data.option_menu = option_menu;
 
     popup_data.width = win_data.width;
     popup_data.height = cog_popup_menu_get_height_for_option_menu (option_menu);
 
-    popup_data.popup_menu = cog_popup_menu_create(option_menu, wl_data.shm, popup_data.width, popup_data.height,
-                                                  wl_data.current_output->scale);
+    popup_data.popup_menu = cog_popup_menu_create(option_menu, wl_data.shm, popup_data.width, popup_data.height, scale);
 
     popup_data.wl_surface = wl_compositor_create_surface (wl_data.compositor);
     g_assert (popup_data.wl_surface);
 
 #ifdef WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION
     if (wl_surface_get_version(popup_data.wl_surface) >= WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION)
-        wl_surface_set_buffer_scale(popup_data.wl_surface, wl_data.current_output->scale);
+        wl_surface_set_buffer_scale(popup_data.wl_surface, scale);
 #endif /* WL_SURFACE_SET_BUFFER_SCALE_SINCE_VERSION */
 
     if (wl_data.xdg_shell != NULL) {
