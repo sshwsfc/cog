@@ -24,6 +24,7 @@
 #    include <wayland-cursor.h>
 #endif
 
+#include "linux-dmabuf-unstable-v1-client.h"
 #include "presentation-time-client.h"
 #include "xdg-shell-client.h"
 
@@ -381,14 +382,31 @@ cog_wl_view_update_surface_contents(CogWlView *view)
         wl_buffer = exp_buffer->wl_buffer;
     } else {
         static PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWL s_eglCreateWaylandBufferFromImageWL;
-        if (G_UNLIKELY(s_eglCreateWaylandBufferFromImageWL == NULL)) {
+        static bool s_egl_ext_checked;
+        if (!s_egl_ext_checked) {
             s_eglCreateWaylandBufferFromImageWL =
                 (PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWL) load_egl_proc_address("eglCreateWaylandBufferFromImageWL");
-            g_assert(s_eglCreateWaylandBufferFromImageWL);
+            s_egl_ext_checked = true;
         }
 
-        wl_buffer = s_eglCreateWaylandBufferFromImageWL(
-            platform->display->egl_display, wpe_fdo_egl_exported_image_get_egl_image(view->image));
+        if (s_eglCreateWaylandBufferFromImageWL) {
+            wl_buffer = s_eglCreateWaylandBufferFromImageWL(
+                platform->display->egl_display, wpe_fdo_egl_exported_image_get_egl_image(view->image));
+        }
+
+        if (!wl_buffer && platform->display->dmabuf) {
+            const struct linux_dmabuf_attributes *attr =
+                wpe_fdo_egl_exported_image_get_dmabuf_attributes(view->image);
+            g_assert(attr != NULL);
+            struct zwp_linux_buffer_params_v1 *params = zwp_linux_dmabuf_v1_create_params(platform->display->dmabuf);
+            for (int i = 0; i < attr->n_planes; i++) {
+                zwp_linux_buffer_params_v1_add(params, attr->fd[i], i, attr->offset[i], attr->stride[i],
+                                               attr->modifier[i] >> 32, attr->modifier[i] & 0xffffffff);
+            }
+            wl_buffer = zwp_linux_buffer_params_v1_create_immed(params, attr->width, attr->height,
+                                                                attr->format, attr->flags);
+        }
+
         g_assert(wl_buffer);
 
         exp_buffer = g_new0(struct egl_exported_buffer, 1);

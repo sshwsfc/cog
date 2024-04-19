@@ -206,13 +206,13 @@ registry_on_global(void *data, struct wl_registry *registry, uint32_t name, cons
 #endif // WL_SEAT_NAME_SINCE_VERSION
         };
         wl_seat_add_listener(wl_seat, &seat_listener, seat);
-#if COG_ENABLE_WESTON_DIRECT_DISPLAY
     } else if (strcmp(interface, zwp_linux_dmabuf_v1_interface.name) == 0) {
         if (version < 3) {
             g_warning("Version %d of the zwp_linux_dmabuf_v1 protocol is not supported", version);
             return;
         }
         display->dmabuf = wl_registry_bind(registry, name, &zwp_linux_dmabuf_v1_interface, 3);
+#if COG_ENABLE_WESTON_DIRECT_DISPLAY
     } else if (strcmp(interface, weston_direct_display_v1_interface.name) == 0) {
         display->direct_display = wl_registry_bind(registry, name, &weston_direct_display_v1_interface, 1);
 #endif /* COG_ENABLE_WESTON_DIRECT_DISPLAY */

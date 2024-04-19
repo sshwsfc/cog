@@ -254,8 +254,9 @@ struct _CogWlDisplay {
     CogWlSeat     *seat_default;
     struct wl_list seats; /* wl_list<CogWlSeat> */
 
-#if COG_ENABLE_WESTON_DIRECT_DISPLAY
     struct zwp_linux_dmabuf_v1      *dmabuf;
+
+#if COG_ENABLE_WESTON_DIRECT_DISPLAY
     struct weston_direct_display_v1 *direct_display;
 #endif
 
