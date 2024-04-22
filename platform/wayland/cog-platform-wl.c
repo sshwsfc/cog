@@ -655,6 +655,20 @@ keyboard_on_key(void               *data,
         return;
     }
 
+    if (key == 158) { // KEY_BACK
+        CogWlViewport *viewport = COG_WL_VIEWPORT(seat->keyboard_target);
+        CogView *view = cog_viewport_get_visible_view(COG_VIEWPORT(viewport));
+        const gchar *url = webkit_web_view_get_uri(WEBKIT_WEB_VIEW(view));
+        if ((url && strstr(url, "xbox.com") || strstr(url, "twitch.tv"))) {
+            if (state == WL_KEYBOARD_KEY_STATE_PRESSED &&
+                webkit_web_view_can_go_back(WEBKIT_WEB_VIEW(view)))
+                webkit_web_view_go_back(WEBKIT_WEB_VIEW(view));
+            return;
+        } else {
+            key = 14; // KEY_BACKSPACE
+        }
+    }
+
     // wl_keyboard protocol sends key events as a physical key signals on
     // the keyboard (limited to 256 - 8 bits).  The XKB protocol doesn't share
     // this limitation and uses extended keycodes and it restricts these
